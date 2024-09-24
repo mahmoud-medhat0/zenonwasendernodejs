@@ -7,6 +7,9 @@ const sessionController = require('./controllers/sessionController');
 const config = require('./config/config');
 const sessionTokenMiddleware = require('./middleware/sessionTokenMiddleware');
 const checkAuthorizedDomainsMiddleware = require('./middleware/authorizedDomainsMiddleware');
+
+console.log('Starting application...');
+
 const app = express();
 app.use(bodyParser.json());
 
@@ -15,9 +18,11 @@ app.use(sessionTokenMiddleware);
 app.use(sessionRoutes);
 
 app.use(WaMessagesRoutes);
+
 setInterval(() => {
     sessionController.updateSessions();
 }, 1000 * 60 * 10);
+
 app.listen(config.port, () => {
     console.log(`Server is running on port ${config.port}`);
 });
@@ -43,3 +48,5 @@ process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled Rejection at:', promise, 'reason:', reason);
     sendTelegramMessage(`Unhandled Rejection: ${reason}`);
 });
+
+console.log('Application setup complete.');
