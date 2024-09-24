@@ -36,12 +36,10 @@ function sendTelegramMessage(message) {
 process.on('uncaughtException', (error) => {
     console.error('Uncaught Exception:', error);
     sendTelegramMessage(`Error: ${error.message}\nStack: ${error.stack}`);
-    process.exit(1); // Let PM2 restart the app
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled Rejection at:', promise, 'reason:', reason);
     sendTelegramMessage(`Unhandled Rejection: ${reason}`);
-    process.exit(1); // Let PM2 restart the app
 });

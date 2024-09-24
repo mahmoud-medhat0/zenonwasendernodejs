@@ -123,7 +123,7 @@ exports.updateSessions = (req, res) => {
             return;
         }
         sessions.forEach(async (session) => {
-            let client = await sessionManager.createSession(session.session_id);
+            let client = await sessionManager.initializeSession(session.session_id);
             client.destroy();
         });
     });
