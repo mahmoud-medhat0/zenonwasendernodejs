@@ -133,6 +133,7 @@ class MultiSessionManager {
         client.initialize();
         sessionModel.updateBySessionId(sessionId, 'status', 'ready');
         console.log(`Client is ready for session ${sessionId}`);
+return client;
     }
 }
 
