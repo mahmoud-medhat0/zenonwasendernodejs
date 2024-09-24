@@ -20,7 +20,7 @@ app.use(sessionRoutes);
 app.use(WaMessagesRoutes);
 
 setInterval(() => {
-    sessionController.updateSessions();
+    //sessionController.updateSessions();
 }, 1000 * 60 * 10);
 
 app.listen(config.port, () => {
