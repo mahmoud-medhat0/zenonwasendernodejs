@@ -43,9 +43,12 @@ function initializeClient() {
     });
 
     client.on('message', (message) => {
+        //for testing
+        if (message.body.includes('test')) {
         client.sendMessage(message.from, message.body)
             .then(() => process.send({ sessionId, type: 'message_sent', message: `Replied to ${message.from} with: ${message.body}` }))
-            .catch(err => process.send({ sessionId, type: 'error', message: `Error replying to message: ${err.message}` }));
+                .catch(err => process.send({ sessionId, type: 'error', message: `Error replying to message: ${err.message}` }));
+        }
     });
 
     client.on('qr', async (qrReceived, asciiQR) => {
