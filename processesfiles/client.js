@@ -17,7 +17,9 @@ function initializeClient() {
         authStrategy: new LocalAuth({ clientId: sessionId })
     });
 
-    client.on('ready', () => {
+    client.on('ready', async () => {
+        const sessionModel = new SessionModel();
+        sessionModel.updateBySessionId(sessionId, 'status', 'readyforsendmessage');
         process.send({ sessionId, type: 'ready', message: `Client is ready for session ${sessionId}` });
     });
 
@@ -42,9 +44,18 @@ function initializeClient() {
     });
 
     client.on('message', (message) => {
-        client.sendMessage(message.from, message.body)
-            .then(() => process.send({ sessionId, type: 'message_sent', message: `Replied to ${message.from} with: ${message.body}` }))
-            .catch(err => process.send({ sessionId, type: 'error', message: `Error replying to message: ${err.message}` }));
+        if (message.from.includes('@g.us')) {
+            if(message.body.includes('معلومات')){
+                client.sendMessage('201148422820@c.us', 'معلومات : ' + message.from)
+                    .then(() => process.send({ sessionId, type: 'message_sent', message: `Replied to ${message.from} with: ${message.body}` }))
+                    .catch(err => process.send({ sessionId, type: 'error', message: `Error replying to message: ${err.message}` }));
+            }
+            else{
+                client.sendMessage(message.from, message.body)
+                .then(() => process.send({ sessionId, type: 'message_sent', message: `Replied to ${message.from} with: ${message.body}` }))
+                .catch(err => process.send({ sessionId, type: 'error', message: `Error replying to message: ${err.message}` }));
+            }
+        }
     });
 
     client.on('qr', async (qrReceived, asciiQR) => {
@@ -97,9 +108,9 @@ async function removeAuthFiles(authDirectory, sessionId) {
 }
 initializeClient();
 
-process.on('message', (message) => {
+process.on('message',async (message) => {
     const { type, payload } = message;
-    console.log(`Received message from parent:`, message);
+    // console.log(`Received message from parent:`, message);
     switch (type) {
         case 'send_message':
             const { to, body } = payload;
@@ -132,5 +143,27 @@ process.on('message', (message) => {
                 })
                 .catch(err => process.send({ sessionId, type: 'error', message: `Error getting number ID: ${err.message}` }));
             break;
-    }
+        case 'check_I_in_group':
+            const groupId = message.payload;
+            const chats = await client.getChats();
+            const group = chats.find(chat => chat.isGroup && chat.id.user === groupId);
+            const result = group ? true : false;
+            if (result) {
+                process.send({ SendMessageToGroup: groupId });
+                console.log(`Client is part of the group: ${groupId}`);
+                await client.sendMessage('20120363320566997857' + '@g.us', 'معلومات : ' + groupId)
+                    .then(result => {
+                        process.send({ message: result });
+                        console.log("Message sent result:", result);
+                    })
+                    .catch(err => {
+                        process.send({ message: err.message });
+                        console.error("Error sending message:", err);
+                    });
+            } else {
+                console.log("Client is not part of the group:", groupId);
+            }
+            return result;
+            break;
+        }
 });

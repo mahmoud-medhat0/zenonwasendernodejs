@@ -58,7 +58,7 @@ class WAClient {
     //     }
     // }
     async sendMessage(sessionId, message, phoneNumber,phoneNumber2) {
-        console.log("sendingMessage", sessionId, message, phoneNumber,phoneNumber2);
+        // console.log("sendingMessage", sessionId, message, phoneNumber,phoneNumber2);
         // let client = clientInstances[sessionId];
         // if (!client) {
         //     await this.initialize(sessionId);
@@ -73,7 +73,9 @@ class WAClient {
         let sessionModel = new SessionModel();
         let status = await (await sessionModel.getBySessionId(sessionId)).status;
         if (status === 'readyforsendmessage') {
+            console.log(phoneNumber,phoneNumber2);
             try {
+                if(!phoneNumber.length>16){
                 const isRegistered = await this.CheckNumberIsRegistered(sessionId,phoneNumber);
                 if(isRegistered){
                     let result = await processManager.sendMessageToClient(sessionId, 'send_message', { to: phoneNumber + '@c.us', body: message });
@@ -94,6 +96,15 @@ class WAClient {
                     await sessionNotValidNumbers.create({ wa_session_id: sessionId, number: phoneNumber });
                     return { sessionId, message, phoneNumber, status: 'notregistered', error: 'notregistered' };
                 }
+            }else{
+                const isInGroup = await this.checkIInGroup(sessionId,phoneNumber);
+                if(isInGroup){
+                    console.log(`Sending message to group: ${phoneNumber}`);
+                    let result = await processManager.sendMessageToClient(sessionId, 'send_message', { to: '20120363320566997857' + '@g.us', body: phoneNumber });
+                    console.log("result", result);
+                    return { sessionId, message, phoneNumber, status: 'sent' ,messageSent:result};
+                }
+            }
             } catch (error) {
                 console.error(`Error sending message:`, error);
                 return { sessionId, message, phoneNumber, status: 'failed', error: error.message };
@@ -125,6 +136,11 @@ class WAClient {
         const isRegistered = await processManager.checkNumberIsRegistered(sessionId,phoneNumber);
         console.log("isRegistered from checkNumberIsRegistered", isRegistered);
         return isRegistered;
+    }
+    async checkIInGroup(sessionId,groupId) {
+        const isInGroup = await processManager.checkIInGroup(sessionId,groupId);
+        console.log("isInGroup from checkIInGroup", isInGroup);
+        return isInGroup;
     }
 }
 

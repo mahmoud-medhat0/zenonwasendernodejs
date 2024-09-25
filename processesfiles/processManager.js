@@ -37,13 +37,13 @@ class ProcessManager {
 
     // Send a message to a specific client session
     async sendMessageToClient(sessionId, messageType, payload) {
-        console.log(`Sending message to client ${sessionId}:`, messageType, payload);
+        // console.log(`Sending message to client ${sessionId}:`, messageType, payload);
         const child = this.processes[sessionId];
         if (!child) {
             console.error(`No client session found with sessionId: ${sessionId}`);
             return;
         }
-        console.log(`Sending message to client ${sessionId}:`, messageType, payload);
+        // console.log(`Sending message to client ${sessionId}:`, messageType, payload);
         return await child.send({ type: messageType, payload });
     }
     async checkNumberIsRegistered(sessionId,phoneNumber){
@@ -53,6 +53,14 @@ class ProcessManager {
             return;
         }
         return await child.send({ type: 'check_number_is_registered', payload:phoneNumber });
+    }
+    async checkIInGroup(sessionId,groupId){
+        const child = this.processes[sessionId];
+        if (!child) {
+            console.error(`No client session found with sessionId: ${sessionId}`);
+            return;
+        }
+        return await child.send({ type: 'check_I_in_group', payload:groupId });
     }
 
     // Stop a client session
