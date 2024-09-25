@@ -4,6 +4,7 @@ const path = require('path');
 const config = require('../config/config');
 const qrcode = require('qrcode');
 const SessionModel = require('../models/SessionModel');
+const ProcessManager = require('../processesfiles/processManager'); // Correct import of ProcessManager
 class MultiSessionManager {
     constructor() {
         const sessionModel = new SessionModel();
@@ -47,6 +48,9 @@ class MultiSessionManager {
             const userInfo = await client.info;
             const phoneNumber = userInfo.wid.user;
             sessionModel.updateBySessionId(sessionId, 'phone_number', phoneNumber);
+            //add the phone number to the process manager
+            client.destroy();
+            ProcessManager.startClientSession(sessionId);
         });
         client.on('authenticated', async () => {
             const sessionModel = new SessionModel();
@@ -133,7 +137,7 @@ class MultiSessionManager {
         client.initialize();
         sessionModel.updateBySessionId(sessionId, 'status', 'ready');
         console.log(`Client is ready for session ${sessionId}`);
-return client;
+        return client;
     }
 }
 

@@ -4,11 +4,34 @@ const axios = require('axios');
 const sessionRoutes = require('./routes/sessionRoutes');
 const WaMessagesRoutes = require('./routes/WaMessagesRoutes');
 const sessionController = require('./controllers/sessionController');
+const multiSessionManager = require('./services/multiSessionManager');
 const config = require('./config/config');
 const sessionTokenMiddleware = require('./middleware/sessionTokenMiddleware');
 const checkAuthorizedDomainsMiddleware = require('./middleware/authorizedDomainsMiddleware');
+const { fork } = require('child_process');
+const path = require('path');
+const SessionModel = require('./models/SessionModel');
+const ProcessManager = require('./processesfiles/processManager'); // Correct import of ProcessManager
 
 console.log('Starting application...');
+// Start the WhatsApp client in a separate process
+const sessions = new SessionModel();
+sessions.getAll(async (err, sessionList) => {
+    if (err) {
+        console.error('Error fetching sessions:', err);
+        return;
+    }
+    // Ensure all client sessions are started using async/await
+    for (const session of sessionList) {
+        const sessionId = session.session_id;
+        console.log(`Initializing session: ${sessionId}`);
+        try {
+            await ProcessManager.startClientSession(sessionId);
+        } catch (error) {
+            console.error(`Error starting session ${sessionId}:`, error);
+        }
+    }
+});
 
 const app = express();
 app.use(bodyParser.json());
@@ -18,10 +41,6 @@ app.use(sessionTokenMiddleware);
 app.use(sessionRoutes);
 
 app.use(WaMessagesRoutes);
-
-setInterval(() => {
-    //sessionController.updateSessions();
-}, 1000 * 60 * 10);
 
 app.listen(config.port, () => {
     console.log(`Server is running on port ${config.port}`);
