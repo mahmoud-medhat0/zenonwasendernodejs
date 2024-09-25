@@ -18,24 +18,23 @@ function initializeClient() {
     });
 
     client.on('ready', () => {
-        const sessionModel = new SessionModel();
-        sessionModel.updateBySessionId(sessionId, 'status', 'ready');
         process.send({ sessionId, type: 'ready', message: `Client is ready for session ${sessionId}` });
     });
 
-    client.on('auth_failure', async (msg) => {
+    client.on('auth_failure', (msg) => {
         const sessionModel = new SessionModel();
-        await sessionModel.updateBySessionId(sessionId, 'status', 'auth_failure');
+        sessionModel.updateBySessionId(sessionId, 'status', 'auth_failure');
         process.send({ sessionId, type: 'auth_failure', message: `Authentication failure: ${msg}` });
     });
 
     client.on('disconnected', async (reason) => {
         const sessionModel = new SessionModel();
-        await sessionModel.updateBySessionId(sessionId, 'status', 'disconnected');
-        await sessionModel.updateBySessionId(sessionId, 'phone_number', null);
-        await sessionModel.updateBySessionId(sessionId, 'qrcode', null);
+        sessionModel.updateBySessionId(sessionId, 'status', 'disconnected');
+        sessionModel.updateBySessionId(sessionId, 'phone_number', '');
+        sessionModel.updateBySessionId(sessionId, 'qrcode', '');
         process.send({ sessionId, type: 'disconnected', message: `Client disconnected: ${reason}` });
         process.exit(); // Terminate the child process when disconnected
+        await removeAuthFiles(authDirectory, sessionId);
     });
 
     client.on('message_sent', (message) => {
@@ -43,41 +42,41 @@ function initializeClient() {
     });
 
     client.on('message', (message) => {
-        //for testing
-        if (message.body.includes('test')) {
         client.sendMessage(message.from, message.body)
             .then(() => process.send({ sessionId, type: 'message_sent', message: `Replied to ${message.from} with: ${message.body}` }))
-                .catch(err => process.send({ sessionId, type: 'error', message: `Error replying to message: ${err.message}` }));
-        }
+            .catch(err => process.send({ sessionId, type: 'error', message: `Error replying to message: ${err.message}` }));
     });
 
     client.on('qr', async (qrReceived, asciiQR) => {
         try {
             const qrCodeDataUrl = await qrcode.toDataURL(qrReceived);
             const sessionModel = new SessionModel();
-            await sessionModel.updateBySessionId(sessionId, 'qrcode', qrCodeDataUrl);
-            await sessionModel.updateBySessionId(sessionId, 'status', 'Initializing');
+            sessionModel.updateBySessionId(sessionId, 'qrcode', qrCodeDataUrl);
             console.log(`New QR RECEIVED for session ${sessionId}`);
         } catch (error) {
             console.log("Error updating QRCODE", error);
         }
     });
 
-    client.on('error', (error) => {
+    client.on('error', async (error) => {
         console.log("Error", error);
         if (error.message.includes('Execution context was destroyed')) {
             console.log("Reinitializing client due to execution context destruction");
-            retryDestroyAndInitializeClient();
+            await retryDestroyAndInitializeClient();
         } else {
-            client.destroy().catch(err => console.log("Error destroying client", err));
+            await client.destroy().catch(err => console.log("Error destroying client", err));
         }
     });
 
     client.initialize();
 }
 
-function retryDestroyAndInitializeClient(retries = 5, delay = 1000) {
-    client.destroy().then(() => {
+async function retryDestroyAndInitializeClient(retries = 5, delay = 1000) {
+    const sessionModel = new SessionModel();
+    sessionModel.updateBySessionId(sessionId, 'status', 'disconnected');
+    sessionModel.updateBySessionId(sessionId, 'phone_number', '');
+    sessionModel.updateBySessionId(sessionId, 'qrcode', '');
+    await client.destroy().then(() => {
         initializeClient();
     }).catch(err => {
         if (retries > 0) {
@@ -88,7 +87,14 @@ function retryDestroyAndInitializeClient(retries = 5, delay = 1000) {
         }
     });
 }
-
+async function removeAuthFiles(authDirectory, sessionId) {
+    try {
+        await fs.promises.rm(authDirectory, { recursive: true, force: true });
+        console.log(`Session files for ${sessionId} deleted successfully.`);
+    } catch (err) {
+        console.error(`Failed to delete session files for ${sessionId}:`, err);
+    }
+}
 initializeClient();
 
 process.on('message', (message) => {
