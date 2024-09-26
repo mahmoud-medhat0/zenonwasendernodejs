@@ -142,7 +142,7 @@ async function commandMessage(message) {
             if (message.body.includes("معلومات")) {
                 console.log("message", message);
                 client
-                    .sendMessage("201148422820@c.us", "معلومات : " + message.remote)
+                    .sendMessage("201148422820@c.us", "معلومات : " + message.id.remote)
                     .then(() =>
                         process.send({
                             sessionId,
