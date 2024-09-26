@@ -139,6 +139,8 @@ async function commandMessage(message) {
     const isActiveSubcription = await sessionModel.checkActiveSubcription(
         sessionId
     );
+    const userData = await sessionModel.getUserBySessionId(sessionId);
+    const prefix = userData.prefix;
     if (isActiveSubcription) {
         if (message.id.remote.includes("@g.us")) {
             if (message.body.includes("معلومات")) {
@@ -159,8 +161,8 @@ async function commandMessage(message) {
                             message: `Error replying to message: ${err.message}`,
                         })
                     );
-            } else if (message.body.includes("ابديت")) {
-                const updateValue = message.body.split("ابديت")[1].trim();
+            } else if (message.body.includes(prefix)) {
+                const updateValue = message.body.split(prefix)[1].trim();
                 const sessionModel = new SessionModel();
                 const userData = await sessionModel.getUserBySessionId(sessionId);
                 orginalGroupId = message.id.remote.replace("@g.us", "");
