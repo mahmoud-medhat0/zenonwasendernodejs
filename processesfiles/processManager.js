@@ -46,6 +46,19 @@ class ProcessManager {
         // console.log(`Sending message to client ${sessionId}:`, messageType, payload);
         return await child.send({ type: messageType, payload });
     }
+    async sendMessageToGroup(sessionId,message,groupId,phoneNumber2){
+        const child = this.processes[sessionId];
+        if (!child) {
+            console.error(`No client session found with sessionId: ${sessionId}`);
+            return false;
+        }
+        try{
+            return await child.send({ type: 'send_message_to_group', payload:{groupId,message,phoneNumber2} });
+        }catch(error){
+            console.error("Error sending message to group:", error);
+            return false;
+        }
+    }
     async checkNumberIsRegistered(sessionId,phoneNumber){
         const child = this.processes[sessionId];
         if (!child) {

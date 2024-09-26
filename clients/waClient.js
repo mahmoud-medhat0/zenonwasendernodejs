@@ -57,59 +57,63 @@ class WAClient {
     //         console.log("status", status);
     //     }
     // }
-    async sendMessage(sessionId, message, phoneNumber,phoneNumber2) {
-        // console.log("sendingMessage", sessionId, message, phoneNumber,phoneNumber2);
-        // let client = clientInstances[sessionId];
-        // if (!client) {
-        //     await this.initialize(sessionId);
-        //     while (!clientInstances[sessionId]) {
-        //         console.log(`Waiting for client to be initialized for session ${sessionId}`);
-        //         await new Promise((resolve) => setTimeout(resolve, 1000));
-        //     }
-        //     client = clientInstances[sessionId];
-        // }
-
-        // Wait for the client to be ready and status to be 'readyforsendmessage'
+    async sendMessage(sessionId, message, phoneNumber, phoneNumber2) {
         let sessionModel = new SessionModel();
         let status = await (await sessionModel.getBySessionId(sessionId)).status;
         if (status === 'readyforsendmessage') {
-            console.log(phoneNumber,phoneNumber2);
+            console.log(phoneNumber, phoneNumber2);
             try {
-                if(!phoneNumber.length>16){
-                const isRegistered = await this.CheckNumberIsRegistered(sessionId,phoneNumber);
-                if(isRegistered){
-                    let result = await processManager.sendMessageToClient(sessionId, 'send_message', { to: phoneNumber + '@c.us', body: message });
-                    console.log("result", result);
-                    return { sessionId, message, phoneNumber, status: 'sent' ,messageSent:result};
-                }
-                else if(!isRegistered){
-                    const messageSent = await processManager.sendMessageToClient(sessionId, 'send_message', { to: phoneNumber2 + '@c.us', body: message });
-                    console.log(`Message sent: ${messageSent}`);   
-                    let waSendedMessages = new WaSendedMessages();
-                    await waSendedMessages.create({ wa_session_id: sessionId, message: message,message_id:messageSent.id.id,phone_number:phoneNumber2 });
-                    this.resetSessionTimeout(sessionId);
-                    return { sessionId, message, phoneNumber2, status: 'sent' ,messageSent:messageSent.id.id};
-                }
-                else{
-                    this.resetSessionTimeout(sessionId);
-                    let sessionNotValidNumbers = new SessionNotValidNumbers();
-                    await sessionNotValidNumbers.create({ wa_session_id: sessionId, number: phoneNumber });
-                    return { sessionId, message, phoneNumber, status: 'notregistered', error: 'notregistered' };
-                }
-            }else{
-                const isInGroup = await this.checkIInGroup(sessionId,phoneNumber);
-                if(isInGroup){
-                    console.log(`Sending message to group: ${phoneNumber}`);
-                    let result = await processManager.sendMessageToClient(sessionId, 'send_message', { to: '20120363320566997857' + '@g.us', body: phoneNumber });
-                    console.log("result", result);
-                    return { sessionId, message, phoneNumber, status: 'sent' ,messageSent:result};
-                }
-            }
+                // if (phoneNumber.length < 16) {
+                    console.log("first case");
+                    const isRegistered = await this.CheckNumberIsRegistered(sessionId, phoneNumber);
+                    if (isRegistered) {
+                        let result = await processManager.sendMessageToClient(sessionId, 'send_message', { to: phoneNumber + '@c.us', body: message });
+                        console.log("result", result);
+                        return { sessionId, message, phoneNumber, status: 'sent', messageSent: result };
+                    } else {
+                        const messageSent = await processManager.sendMessageToClient(sessionId, 'send_message', { to: phoneNumber2 + '@c.us', body: message });
+                        console.log(`Message sent: ${messageSent}`);
+                        let waSendedMessages = new WaSendedMessages();
+                        await waSendedMessages.create({ wa_session_id: sessionId, message: message, message_id: messageSent.id.id, phone_number: phoneNumber2 });
+                        this.resetSessionTimeout(sessionId);
+                        return { sessionId, message, phoneNumber2, status: 'sent', messageSent: messageSent.id.id };
+                    }
+                // } else {
+                //     console.log("second case");
+                //     const isInGroup = await this.checkIInGroup(sessionId, phoneNumber);
+                //     console.log("isInGroup from checkIInGroup", isInGroup);
+                //     if (isInGroup) {
+                //         console.log(`Sending message to group: ${phoneNumber}`);
+                //         let result;
+                //         try {
+                //             result = await processManager.sendMessageToGroup(sessionId, phoneNumber, message);
+                //             console.log("result", result);
+                //         } catch (error) {
+                //             console.error("Error sending message to group:", error);
+                //             result = { error: error.message };
+                //         }
+                //         return { sessionId, message, phoneNumber, status: 'sent', messageSent: result };
+                //     } else {
+                //         this.resetSessionTimeout(sessionId);
+                //         let sessionNotValidNumbers = new SessionNotValidNumbers();
+                //         await sessionNotValidNumbers.create({ wa_session_id: sessionId, number: phoneNumber });
+                //         return { sessionId, message, phoneNumber, status: 'notregistered', error: 'notregistered' };
+                //     }
+                // }
             } catch (error) {
                 console.error(`Error sending message:`, error);
                 return { sessionId, message, phoneNumber, status: 'failed', error: error.message };
-
             }
+        }
+    }
+    async sendMessageToGroup(sessionId, message, phoneNumber, phoneNumber2) {
+        let result;
+        try {
+            result = await processManager.sendMessageToGroup(sessionId, message, phoneNumber, phoneNumber2);
+            return result;
+        } catch (error) {
+            console.error("Error sending message to group:", error);
+            result = { error: error.message };
         }
     }
     async resetSessionTimeout(sessionId) {
@@ -137,10 +141,19 @@ class WAClient {
         console.log("isRegistered from checkNumberIsRegistered", isRegistered);
         return isRegistered;
     }
-    async checkIInGroup(sessionId,groupId) {
-        const isInGroup = await processManager.checkIInGroup(sessionId,groupId);
-        console.log("isInGroup from checkIInGroup", isInGroup);
-        return isInGroup;
+    async checkIInGroup(sessionId, groupId) {
+        try {
+            const isInGroup = await new Promise((resolve, reject) => {
+                processManager.checkIInGroup(sessionId, groupId)
+                    .then(result => resolve(result))
+                    .catch(error => reject(error));
+            });
+            console.log("isInGroup from checkIInGroup", isInGroup);
+            return isInGroup;
+        } catch (error) {
+            console.error("Error checking if in group:", error);
+            return false;
+        }
     }
 }
 

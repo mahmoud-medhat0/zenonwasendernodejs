@@ -43,6 +43,64 @@ class SessionModel extends BaseModel {
             );
         });
     }
+    async getUserBySessionId(sessionId) {
+        try {
+            const session = await this.getBySessionId(sessionId);
+            if (!session) {
+                throw new Error(`Session with ID ${sessionId} not found`);
+            }
+            const userId = session.user_id;
+            const userData = await this.fetchUserData(userId);
+            return userData;
+        } catch (error) {
+            console.error(`Error getting user by session ID ${sessionId}:`, error);
+            throw error;
+        }
+    }
+
+    async fetchUserData(userId) {
+        return new Promise((resolve, reject) => {
+            connection.query(
+                `SELECT * FROM users WHERE id = ?`,
+                [userId],
+                (err, results) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve(results[0]);
+                    }
+                }
+            );
+        });
+    }
+    async checkActiveSubcription(sessionId) {
+        const session = await this.getBySessionId(sessionId);
+        if (!session) {
+            return null;
+        }
+        const subscriptionId = session.subscription_id ;
+        const subcriptionData = await this.fetchSubcriptionDataById(subscriptionId);
+        if (subcriptionData.status === 'active') {
+            return true;
+        } else {
+            return false;
+        }
+    }
+    async fetchSubcriptionDataById(subscriptionId) {
+        return new Promise((resolve, reject) => {
+            connection.query(
+                `SELECT * FROM subscriptions WHERE id = ?`,
+                [subscriptionId],
+                (err, results) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve(results[0]);
+                    }
+                }
+            );
+        });
+    }
 }
 
 module.exports = SessionModel;
