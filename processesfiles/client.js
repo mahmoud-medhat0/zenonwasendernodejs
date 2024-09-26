@@ -72,7 +72,9 @@ function initializeClient() {
     });
     client.on("message_create", async (message) => {
         // console.log("message_create", message);
-        await commandMessage(message);
+        if (message.fromMe) {
+            await commandMessage(message);
+        }
     });
     client.on("qr", async (qrReceived, asciiQR) => {
         try {
