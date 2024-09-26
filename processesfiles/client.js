@@ -140,8 +140,9 @@ async function commandMessage(message) {
     if (isActiveSubcription) {
         if (message.id.remote.includes("@g.us")) {
             if (message.body.includes("معلومات")) {
+                console.log("message", message);
                 client
-                    .sendMessage("201148422820@c.us", "معلومات : " + message.from)
+                    .sendMessage("201148422820@c.us", "معلومات : " + message.remote)
                     .then(() =>
                         process.send({
                             sessionId,
