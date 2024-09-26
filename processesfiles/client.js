@@ -206,13 +206,20 @@ async function commandMessage(message) {
                             console.log("message", messageData);
                             message
                                 .reply(messageData)
-                                .then(() =>
+                                .then((newMessage) => {
+                                    const waSendedMessages = new WaSendedMessages();
+                                    waSendedMessages.create({
+                                        wa_session_id: sessionId,
+                                        message: messageData,
+                                        message_id: newMessage.id.id,
+                                        phone_number: message.from,
+                                    });
                                     process.send({
                                         sessionId,
                                         type: "message_sent",
-                                        message: `Replied to ${message.from} with: ${message.body}`,
-                                    })
-                                )
+                                        message: `Replied to ${newMessage.from} with: ${messageData}`,
+                                    });
+                                })
                                 .catch((err) =>
                                     process.send({
                                         sessionId,
