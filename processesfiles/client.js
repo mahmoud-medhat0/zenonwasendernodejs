@@ -162,7 +162,7 @@ async function commandMessage(message) {
                     );
             } else if (message.body.includes(prefix)) {
                 const updateValue = message.body.split(prefix)[1].trim();
-                const beforeMessage = message.body.split(prefix)[0].trim();
+                const beforeMessage = message.body.split(' ')[0];
                 process.send({beforeMessage});
                 const sessionModel = new SessionModel();
                 const userData = await sessionModel.getUserBySessionId(sessionId);
