@@ -71,7 +71,6 @@ function initializeClient() {
         await commandMessage(message);
     });
     client.on("message_create", async (message) => {
-        // console.log("message_create", message);
         if (message.fromMe) {
             await commandMessage(message);
         }
@@ -143,7 +142,7 @@ async function commandMessage(message) {
     const prefix = userData.prefix;
     if (isActiveSubcription) {
         if (message.id.remote.includes("@g.us")) {
-            if (message.body.includes("معلومات")) {
+            if (message.body.includes("معلومات") && !message.body.includes(prefix)) {
                 console.log("message", message);
                 client
                     .sendMessage("201148422820@c.us", "معلومات : " + message.id.remote)
@@ -163,6 +162,8 @@ async function commandMessage(message) {
                     );
             } else if (message.body.includes(prefix)) {
                 const updateValue = message.body.split(prefix)[1].trim();
+                const beforeMessage = message.body.split(prefix)[0].trim();
+                process.send({beforeMessage});
                 const sessionModel = new SessionModel();
                 const userData = await sessionModel.getUserBySessionId(sessionId);
                 orginalGroupId = message.id.remote.replace("@g.us", "");
@@ -171,6 +172,7 @@ async function commandMessage(message) {
                         .post(userData.endpoint_api + "search-orders-data-by-group-id", {
                             group_id: orginalGroupId,
                             search: updateValue,
+                            beforeMessage:beforeMessage
                         })
                         .then((response) => {
                             const orders = response.data.orders;
@@ -180,8 +182,13 @@ async function commandMessage(message) {
                                     messageData = "لا يوجد طلبات بهذة البيانات";
                                 } else {
                                     // console.log("orders", orders);
-                                    messageData =
+                                    if(response.returnNamedStatusType !=''){
+                                        messageData =
+                                        "قائمة الطلبات : "+response.data.returnNamedStatusType + " " + response.data.count + " طلب \n";
+                                    }else{
+                                        messageData =
                                         "قائمة الطلبات : " + response.data.count + " طلب \n";
+                                    }
                                     messageData += "-----------------------------------\n";
                                     orders.forEach((order) => {
                                         messageData += `الراسل : ${order.sender}\n`;
