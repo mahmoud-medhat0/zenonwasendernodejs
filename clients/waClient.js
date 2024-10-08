@@ -86,6 +86,7 @@ class WAClient {
                     if (isInGroup) {
                         console.log(`Sending message to group: ${phoneNumber}`);
                         let result;
+                        phoneNumber = phoneNumber.replace(/\s+/g, '')+'@g.us';
                         try {
                             result = await processManager.sendMessageToGroup(sessionId, phoneNumber, message);
                             console.log("result", result);

@@ -332,8 +332,6 @@ process.on("message", async (message) => {
             if (result) {
                 process.send({ SendMessageToGroup: groupId });
                 console.log(`Client is part of the group: ${groupId}`);
-                // await sendMessageToGroup("20120363320566997857@g.us", "message");
-                // await sendMessageToGroup(group.id._serialized, "معلومات : " + groupId);
             } else {
                 console.log("Client is not part of the group:", groupId);
                 return false;
@@ -341,14 +339,12 @@ process.on("message", async (message) => {
             return result;
             break;
         case "send_message_to_group":
-            process.send({payload: message.payload});
+            process.send({payloadInSendMessageGroup: message.payload});
             var {groupId,message} = message.payload;
-            process.send({groupId});
             try {
                 result = await client.sendMessage(message, {text: groupId});
                 console.log("Message sent to group:", result);
                 return result;
-                return true;
             } catch (err) {
                 process.send({ sessionId, type: "error", message: `Error sending message to group: ${err.message}` });
                 console.error("Error sending message to group:", err);
