@@ -11,4 +11,4 @@ function checkAuthorizedDomains(req, res, next) {
     }
 }
 
-module.exports = checkAuthorizedDomains;
+export default checkAuthorizedDomains;

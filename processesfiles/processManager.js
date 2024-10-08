@@ -1,9 +1,18 @@
-const { fork } = require('child_process');
-const path = require('path');
+import { fork } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-class ProcessManager {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+export default class ProcessManager {
     constructor() {
+        if (ProcessManager.instance) {
+            return ProcessManager.instance;
+        }
         this.processes = {}; // Store child processes by sessionId
+        console.log("Initialized ProcessManager with empty processes:", this.processes);
+        ProcessManager.instance = this;
     }
 
     // Start a new client session process
@@ -37,16 +46,16 @@ class ProcessManager {
 
     // Send a message to a specific client session
     async sendMessageToClient(sessionId, messageType, payload) {
-        // console.log(`Sending message to client ${sessionId}:`, messageType, payload);
         const child = this.processes[sessionId];
         if (!child) {
             console.error(`No client session found with sessionId: ${sessionId}`);
             return;
         }
-        // console.log(`Sending message to client ${sessionId}:`, messageType, payload);
+        console.log(`Sending message to client ${sessionId}:`, messageType, payload);
         return await child.send({ type: messageType, payload });
     }
     async sendMessageToGroup(sessionId,message,groupId,phoneNumber2){
+        console.log("sendMessageToGroup:",sessionId,message,groupId,phoneNumber2);
         const child = this.processes[sessionId];
         if (!child) {
             console.error(`No client session found with sessionId: ${sessionId}`);
@@ -77,7 +86,7 @@ class ProcessManager {
     }
 
     // Stop a client session
-    stopClientSession(sessionId) {
+    async stopClientSession(sessionId) {
         const child = this.processes[sessionId];
         if (child) {
             child.kill(); // Kill the child process
@@ -89,6 +98,3 @@ class ProcessManager {
         return false;
     }
 }
-
-// Export a single instance of the process manager (Singleton pattern)
-module.exports = new ProcessManager();

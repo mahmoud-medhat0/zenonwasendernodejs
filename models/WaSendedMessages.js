@@ -1,9 +1,8 @@
-const BaseModel = require('./BaseModel');
-const connection = require("../db/connection");
+import BaseModel from './BaseModel.js';
+import connection from "../db/connection.js";
 
-class WaSendedMessages extends BaseModel {
+export default class WaSendedMessages extends BaseModel {
     constructor() {
         super('wa_session_sended_messages');
     }
 }
-module.exports = WaSendedMessages;

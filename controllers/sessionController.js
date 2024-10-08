@@ -1,6 +1,10 @@
-const MultiSessionManager = require('../services/multiSessionManager');
+import MultiSessionManager from '../services/multiSessionManager.js';
 const sessionManager = new MultiSessionManager();
-const SessionModel = require('../models/SessionModel');
+import SessionModel from '../models/SessionModel.js';
+import { makeWASocket, useMultiFileAuthState, DisconnectReason } from '@whiskeysockets/baileys'
+import fs from 'fs';
+import path from 'path';
+import qrcode from "qrcode";
 
 // Load sessions from database on startup
 const sessionModel = new SessionModel();
@@ -16,57 +20,8 @@ sessionModel.getAll((err, sessions) => {
         }
     });
 });
-exports.initialize = async (sessionId) => {
 
-    console.log("initializing for : ", sessionId);
-
-    const client = new Client({
-        puppeteer: {
-            headless: true,
-            args: [ '--no-sandbox', '--disable-gpu', ],
-        },
-        authStrategy: new LocalAuth({ clientId: sessionId })
-    });
-
-    client.on('ready', async () => {
-        console.log(`Client is ready for session ${sessionId}`);
-        let sessionModel = new SessionModel();
-        await sessionModel.updateBySessionId(sessionId, 'status', 'ready');
-    });
-    client.on('error', (error) => {
-        console.error(`Client error for session ${sessionId}:`, error);
-    });
-    client.on('authenticated', async () => {
-        const sessionModel = new SessionModel();
-        sessionModel.updateBySessionId(sessionId, 'status', 'authenticated');
-        console.log(`Client is authenticated for session ${sessionId}`);
-    });
-    client.on('auth_failure', async (msg) => {
-        const sessionModel = new SessionModel();
-        sessionModel.updateBySessionId(sessionId, 'status', 'auth_failure');
-        console.error(`Authentication failure for session ${sessionId}`, msg);
-    });
-    client.on('disconnected', async (reason) => {
-        const sessionModel = new SessionModel();
-        sessionModel.updateBySessionId(sessionId, 'status', 'disconnected');
-        console.log(`Client disconnected for session ${sessionId}`, reason);
-    });
-    await client.initialize();
-    let sessionModel = new SessionModel();
-    let status =await (await sessionModel.getBySessionId(sessionId)).status;
-    while (status !== 'ready') {
-        if (status === 'ready') {
-            return;
-        }
-        console.log(`Waiting for client to be ready for session ${sessionId}`);
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        sessionModel = new SessionModel();
-        status = await(await sessionModel.getBySessionId(sessionId)).status;
-    }
-    return client;
-}
-exports.createSession = async (req, res) => {
-
+export const createSession = async (req, res) => {
     console.log("createSession", req.body);
     const sessionId = String(req.body.wa_session_id);
     if (!sessionId) {
@@ -74,16 +29,62 @@ exports.createSession = async (req, res) => {
     }
     try {
         console.log("Session ID not found, creating session");
-        await sessionModel.updateBySessionId(sessionId, 'status', 'creating');
-        await sessionManager.createSession(sessionId);
+        // Define the path for the session file
+        const sessionFilePath = path.join(process.cwd(), `sessions/${sessionId}`);
+        if (!fs.existsSync(sessionFilePath)) {
+            fs.mkdirSync(sessionFilePath, { recursive: true });
+        }
+        const { state, saveCreds } = await useMultiFileAuthState(sessionFilePath)
+        // Initialize the WhatsApp socket
+        let sessionModel = new SessionModel();
+        await sessionModel.create(sessionId, 'status', 'connecting');
+        const socket = await makeWASocket({
+            auth: state,
+        });
+
+        // Save the authentication state whenever it changes
+        socket.ev.on('creds.update', saveCreds);
+        // Handle connection updates
+        socket.ev.on('connection.update', async (update) => {
+            const { connection, lastDisconnect,qr } = update;
+            if (qr) {
+                console.log("QR:", qr);
+                const qrDataURL = await qrcode.toDataURL(qr);
+                let sessionModel = new SessionModel();
+                await sessionModel.updateBySessionId(sessionId, 'qrcode', qrDataURL);
+            }
+            if (connection === 'close') {
+                const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
+                console.log('connection closed due to ', lastDisconnect.error, ', reconnecting ', shouldReconnect);
+                if (shouldReconnect) {
+                    await this.createSession(sessionId);
+                }
+                // Reconnect logic here if needed
+            } else if (connection === 'open') {
+                console.log('opened connection');
+                await sessionModel.updateBySessionId(sessionId, 'status', 'connected');
+                await waClient.sendMessage(sessionId, 'connected', '601122222222@c.us');
+            }
+        });
+
+        // Wait for authentication to complete
+        await new Promise((resolve, reject) => {
+            socket.ev.on('auth-state.update', (authState) => {
+                if (authState === 'authenticated') {
+                    resolve();
+                } else if (authState === 'auth_failure') {
+                    reject(new Error('Authentication failed'));
+                }
+            });
+        });
+
         res.status(200).send({ success: true, message: 'Session created', sessionId });
     } catch (error) {
         console.error("Error creating session", error);
         res.status(500).send({ success: false, message: 'Failed to create session', error: error.message });
     }
 };
-
-exports.getSession = (req, res) => {
+export const getSession = (req, res) => {
     const sessionId = req.body.wa_session_id;
     if (!sessionId || typeof sessionId !== 'string') {
         return res.status(400).send({ message: 'Invalid sessionId' });
@@ -99,7 +100,7 @@ exports.getSession = (req, res) => {
     });
 };
 
-exports.getQrCode = (req, res) => {
+export const getQrCode = (req, res) => {
     const { sessionId } = req.body;
     if (!sessionId || typeof sessionId !== 'string') {
         return res.status(400).send({ message: 'Invalid sessionId' });
@@ -115,7 +116,7 @@ exports.getQrCode = (req, res) => {
         res.status(200).send({ message: 'Session found', qrcode: qrcode });
     });
 };
-exports.updateSessions = (req, res) => {
+export const updateSessions = (req, res) => {
     let sessionModel = new SessionModel();
     sessionModel.getAll((err, sessions) => {
         if (err) {
@@ -128,3 +129,5 @@ exports.updateSessions = (req, res) => {
         });
     });
 }
+
+export default { createSession, getSession, getQrCode, updateSessions };

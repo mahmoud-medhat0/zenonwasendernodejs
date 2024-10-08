@@ -1,17 +1,17 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const axios = require('axios');
-const sessionRoutes = require('./routes/sessionRoutes');
-const WaMessagesRoutes = require('./routes/WaMessagesRoutes');
-const sessionController = require('./controllers/sessionController');
-const multiSessionManager = require('./services/multiSessionManager');
-const config = require('./config/config');
-const sessionTokenMiddleware = require('./middleware/sessionTokenMiddleware');
-const checkAuthorizedDomainsMiddleware = require('./middleware/authorizedDomainsMiddleware');
-const { fork } = require('child_process');
-const path = require('path');
-const SessionModel = require('./models/SessionModel');
-const ProcessManager = require('./processesfiles/processManager'); // Correct import of ProcessManager
+import express from 'express';
+import bodyParser from 'body-parser';
+import axios from 'axios';
+import sessionRoutes from './routes/sessionRoutes.js';
+import WaMessagesRoutes from './routes/WaMessagesRoutes.js';
+import sessionController from './controllers/sessionController.js';
+import multiSessionManager from './services/multiSessionManager.js';
+import config from './config/config.js';
+import sessionTokenMiddleware from './middleware/sessionTokenMiddleware.js';
+import checkAuthorizedDomainsMiddleware from './middleware/authorizedDomainsMiddleware.js';
+import { fork } from 'child_process';
+import path from 'path';
+import SessionModel from './models/SessionModel.js';
+import ProcessManager from './processesfiles/processManager.js';
 
 console.log('Starting application...');
 // Start the WhatsApp client in a separate process
@@ -26,7 +26,8 @@ sessions.getAll(async (err, sessionList) => {
         const sessionId = session.session_id;
         console.log(`Initializing session: ${sessionId}`);
         try {
-            await ProcessManager.startClientSession(sessionId);
+            const processManager = new ProcessManager();
+            await processManager.startClientSession(sessionId);
         } catch (error) {
             console.error(`Error starting session ${sessionId}:`, error);
         }

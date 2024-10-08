@@ -1,5 +1,5 @@
-const BaseModel = require('./BaseModel');
-const connection = require("../db/connection");
+import BaseModel from './BaseModel.js';
+import connection from "../db/connection.js";
 
 class SessionNotValidNumbers extends BaseModel {
     constructor() {
@@ -7,4 +7,4 @@ class SessionNotValidNumbers extends BaseModel {
     }
 }
 
-module.exports = SessionNotValidNumbers;
+export default SessionNotValidNumbers;

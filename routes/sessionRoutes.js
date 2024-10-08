@@ -1,10 +1,10 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-const sessionController = require('../controllers/sessionController');
+import sessionController from '../controllers/sessionController.js';
 
 // Define the route for creating a session
 router.post('/create', sessionController.createSession);
 router.get('/session/:sessionId', sessionController.getSession);
 // Add more routes as needed
 
-module.exports = router;
+export default router;

@@ -1,4 +1,4 @@
-const connection = require("../db/connection");
+import connection from "../db/connection.js";
 
 class BaseModel {
   constructor(tableName) {
@@ -90,4 +90,4 @@ class BaseModel {
   }
 }
 
-module.exports = BaseModel;
+export default BaseModel;

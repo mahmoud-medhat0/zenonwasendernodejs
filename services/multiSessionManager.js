@@ -1,10 +1,10 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const fs = require('fs');
-const path = require('path');
-const config = require('../config/config');
-const qrcode = require('qrcode');
-const SessionModel = require('../models/SessionModel');
-const ProcessManager = require('../processesfiles/processManager'); // Correct import of ProcessManager
+// import { Client, LocalAuth } from 'whatsapp-web.js';
+import fs from 'fs';
+import path from 'path';
+import config from '../config/config.js';
+import qrcode from 'qrcode';
+import SessionModel from '../models/SessionModel.js';
+import ProcessManager from '../processesfiles/processManager.js';
 class MultiSessionManager {
     constructor() {
         const sessionModel = new SessionModel();
@@ -150,4 +150,4 @@ class MultiSessionManager {
 // };
 
 
-module.exports = MultiSessionManager;
+export default MultiSessionManager;

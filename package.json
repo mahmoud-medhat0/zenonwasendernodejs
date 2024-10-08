@@ -2,6 +2,7 @@
   "name": "whatsapp-web-project",
   "version": "1.0.0",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js"
@@ -11,11 +12,14 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^6.7.8",
     "axios": "^1.7.7",
     "child_process": "^1.0.2",
     "crypto": "^1.0.1",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
+    "link-preview-js": "^3.0.5",
     "mysql": "^2.18.1",
     "node-cache": "^5.1.2",
     "punycode": "^2.3.1",

@@ -1,104 +1,103 @@
-const { Client, LocalAuth } = require("whatsapp-web.js");
-const qrcode = require("qrcode");
-const SessionModel = require("../models/SessionModel");
-const WaSendedMessages = require("../models/WaSendedMessages");
-const fs = require("fs");
-const path = require("path");
-const axios = require("axios");
+import qrcode from "qrcode";
+import SessionModel from '../models/SessionModel.js';
+import WaSendedMessages from '../models/WaSendedMessages.js';
+import axios from 'axios';
+import { makeWASocket, useMultiFileAuthState, DisconnectReason } from '@whiskeysockets/baileys'
+import { Boom } from '@hapi/boom';
+import { unlinkSync } from 'fs';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 let client;
 const sessionId = process.argv[2];
+if (!sessionId) {
+    console.error("Error: sessionId is not provided. Please pass a sessionId as a command line argument.");
+    process.exit(1);
+}
+const sessionsDir = path.join(process.cwd(), 'sessions');
+if (!fs.existsSync(sessionsDir)) {
+    fs.mkdirSync(sessionsDir, { recursive: true });
+}
 
-function initializeClient() {
-    client = new Client({
-        puppeteer: {
-            headless: true,
-            args: [
-                "--no-sandbox",
-                "--disable-gpu",
-                "--disable-dev-shm-usage",
-                "--disable-setuid-sandbox",
-                "--no-first-run",
-                "--no-zygote",
-                "--single-process",
-                "--force-device-scale-factor=2",
-            ],
-        },
-        authStrategy: new LocalAuth({ clientId: sessionId }),
+async function initializeClient(sessionId) {
+    const sessionPath = path.join(sessionsDir, sessionId);
+    console.log("sessionPath", sessionPath);
+    const { state, saveCreds } = await useMultiFileAuthState(sessionPath)
+    client = makeWASocket({
+        auth: state,
     });
-
-    client.on("ready", async () => {
-        const sessionModel = new SessionModel();
-        sessionModel.updateBySessionId(sessionId, "status", "readyforsendmessage");
-        process.send({
-            sessionId,
-            type: "ready",
-            message: `Client is ready for session ${sessionId}`,
-        });
-        // client.sendMessage('120363318507018014@g.us', 'test ready')
-    });
-
-    client.on("auth_failure", (msg) => {
-        const sessionModel = new SessionModel();
-        sessionModel.updateBySessionId(sessionId, "status", "auth_failure");
-        process.send({
-            sessionId,
-            type: "auth_failure",
-            message: `Authentication failure: ${msg}`,
-        });
-    });
-
-    client.on("disconnected", async (reason) => {
-        const sessionModel = new SessionModel();
-        sessionModel.updateBySessionId(sessionId, "status", "disconnected");
-        sessionModel.updateBySessionId(sessionId, "phone_number", "");
-        sessionModel.updateBySessionId(sessionId, "qrcode", "");
-        process.send({
-            sessionId,
-            type: "disconnected",
-            message: `Client disconnected: ${reason}`,
-        });
-        process.exit(); // Terminate the child process when disconnected
-        await removeAuthFiles(authDirectory, sessionId);
-    });
-
-    client.on("message_sent", async (message) => {
-        // await commandMessage(message);
-        // process.send({ sessionId, type: 'message_sent', message: `Message sent: ${message}` });
-    });
-
-    client.on("message", async (message) => {
-        // console.log("message", message.fromMe);
-        await commandMessage(message);
-    });
-    client.on("message_create", async (message) => {
-        if (message.fromMe) {
-            await commandMessage(message);
+    client.ev.on('creds.update', saveCreds);
+    client.ev.on('connection.update', async (update) => {
+        const { connection, lastDisconnect } = update;
+        const {qr}=update;
+        if(qr){
+            try {
+                const qrCodeDataUrl = await qrcode.toDataURL(qr);
+                const sessionModel = new SessionModel();
+                sessionModel.updateBySessionId(sessionId, "qrcode", qrCodeDataUrl);
+                console.log(`New QR RECEIVED for session ${sessionId}`);
+            } catch (error) {
+                console.log("Error updating QRCODE", error);
+            }
         }
-    });
-    client.on("qr", async (qrReceived, asciiQR) => {
-        try {
-            const qrCodeDataUrl = await qrcode.toDataURL(qrReceived);
+        if (connection === 'close') {
+            const shouldReconnect = (lastDisconnect.error = Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+            console.log(`connection closed for ${sessionId} due to `, lastDisconnect.error, ', reconnecting ', shouldReconnect);
+            // Reconnect if not logged out
+            if (shouldReconnect) {
+                await initializeClient(sessionId);
+            } else {
+                const sessionModel = new SessionModel();
+                sessionModel.updateBySessionId(sessionId, "status", "disconnected");
+                sessionModel.updateBySessionId(sessionId, "phone_number", "");
+                sessionModel.updateBySessionId(sessionId, "qrcode", "");
+                process.send({
+                    sessionId,
+                    type: "disconnected",
+                    message: `Client disconnected: ${lastDisconnect.error}`,
+                });
+                unlinkSync(sessionPath); // Remove auth files if logged out
+                process.exit(); // Terminate the child process when disconnected
+            }
+        } else if (connection === 'open') {
+            console.log(`opened connection for ${sessionId}`);
             const sessionModel = new SessionModel();
-            sessionModel.updateBySessionId(sessionId, "qrcode", qrCodeDataUrl);
-            console.log(`New QR RECEIVED for session ${sessionId}`);
-        } catch (error) {
-            console.log("Error updating QRCODE", error);
+            sessionModel.updateBySessionId(sessionId, "status", "readyforsendmessage");
+            process.send({
+                sessionId,
+                type: "ready",
+                message: `Client is ready for session ${sessionId}`,
+            });
+        }
+    });
+    client.ev.on('messages.upsert', async (m) => {
+        console.log(`Message for ${sessionId}:`, JSON.stringify(m, undefined, 2));
+
+        const msg = m.messages[0];
+        if (!msg.key.fromMe && m.type === 'notify') {
+            await commandMessage(msg);
         }
     });
 
-    client.on("error", async (error) => {
-        console.log("Error", error);
-        if (error.message.includes("Execution context was destroyed")) {
-            console.log("Reinitializing client due to execution context destruction");
-            await retryDestroyAndInitializeClient();
-        } else {
-            await client
-                .destroy()
-                .catch((err) => console.log("Error destroying client", err));
-        }
-    });
+    // client.on("message_sent", async (message) => {
+    //     // await commandMessage(message);
+    //     // process.send({ sessionId, type: 'message_sent', message: `Message sent: ${message}` });
+    // });
 
-    client.initialize();
+    // client.on("message", async (message) => {
+    //     // console.log("message", message.fromMe);
+    //     await commandMessage(message);
+    // });
+    // client.on("message_create", async (message) => {
+    //     if (message.fromMe) {
+    //         await commandMessage(message);
+    //     }
+    // });
+    // client.initialize();
 }
 
 async function retryDestroyAndInitializeClient(retries = 5, delay = 1000) {
@@ -141,16 +140,17 @@ async function commandMessage(message) {
     const userData = await sessionModel.getUserBySessionId(sessionId);
     const prefix = userData.prefix;
     if (isActiveSubcription) {
-        if (message.id.remote.includes("@g.us")) {
-            if (message.body.includes("معلومات") && !message.body.includes(prefix)) {
+        console.log("message", message);
+        if (message.key.remoteJid.includes("@g.us")) {
+            if (message.message.extendedTextMessage.text.includes("معلومات") && !message.message.extendedTextMessage.text.includes(prefix)) {
                 console.log("message", message);
                 client
-                    .sendMessage("201148422820@c.us", "معلومات : " + message.id.remote)
+                    .sendMessage("201148422820@c.us", {text:"معلومات : " + message.key.remoteJid})
                     .then(() =>
                         process.send({
                             sessionId,
                             type: "message_sent",
-                            message: `Replied to ${message.from} with: ${message.body}`,
+                            message: `Replied to ${message.from} with: ${message.message.extendedTextMessage.text}`,
                         })
                     )
                     .catch((err) =>
@@ -161,12 +161,11 @@ async function commandMessage(message) {
                         })
                     );
             } else if (message.body.includes(prefix)) {
-                const updateValue = message.body.split(prefix)[1].trim();
-                const beforeMessage = message.body.split(' ')[0];
-                process.send({beforeMessage});
+                const updateValue = message.message.extendedTextMessage.text.split(prefix)[1].trim();
+                const beforeMessage = message.message.extendedTextMessage.text.split(' ')[0];
                 const sessionModel = new SessionModel();
                 const userData = await sessionModel.getUserBySessionId(sessionId);
-                orginalGroupId = message.id.remote.replace("@g.us", "");
+                orginalGroupId = message.key.remoteJid.replace("@g.us", "");
                 if (userData.endpoint_api) {
                     axios
                         .post(userData.endpoint_api + "search-orders-data-by-group-id", {
@@ -219,12 +218,12 @@ async function commandMessage(message) {
                                         wa_session_id: sessionId,
                                         message: messageData,
                                         message_id: newMessage.id.id,
-                                        phone_number: message.from,
+                                        phone_number: message.key.remoteJid,
                                     });
                                     process.send({
                                         sessionId,
                                         type: "message_sent",
-                                        message: `Replied to ${newMessage.from} with: ${messageData}`,
+                                        message: `Replied to ${message.key.remoteJid} with: ${messageData}`,
                                     });
                                 })
                                 .catch((err) =>
@@ -250,17 +249,18 @@ async function commandMessage(message) {
         }
     }
 }
-initializeClient();
+initializeClient(sessionId);
 
 process.on("message", async (message) => {
     const { type, payload } = message;
+    let result;
     // console.log(`Received message from parent:`, message);
     switch (type) {
         case "send_message":
             const { to, body } = payload;
             console.log(`Sending message to ${to}: ${body}`);
-            client
-                .sendMessage(to, body)
+            return client
+                .sendMessage(to, {text:body})
                 .then(async (result) => {
                     console.log("result of send message", result.id.id);
                     const waSendedMessages = new WaSendedMessages();
@@ -304,32 +304,31 @@ process.on("message", async (message) => {
             } else {
                 phoneNumber = phoneNumber + "@c.us";
             }
-            return client
-                .getNumberId(phoneNumber)
-                .then(async (result) => {
-                    process.send({
-                        sessionId,
-                        type: "number_id",
-                        message: `Number ID: ${result}`,
-                    });
-                    process.send({ result });
-                    return result == null ? false : true;
-                })
-                .catch((err) =>
-                    process.send({
-                        sessionId,
-                        type: "error",
-                        message: `Error getting number ID: ${err.message}`,
-                    })
-                );
+            result = await client.onWhatsApp(phoneNumber);
+            process.send({result});
+            // return await client
+            //     .onWhatsApp(phoneNumber)
+            //     .then(async (result) => {
+            //         process.send({
+            //             sessionId,
+            //             type: "number_id",
+            //             message: `Number ID: ${result}`,
+            //         });
+            //         process.send({ result });
+            //         return result == null ? false : true;
+            //     })
+            //     .catch((err) =>
+            //         process.send({
+            //             sessionId,
+            //             type: "error",
+            //             message: `Error getting number ID: ${err.message}`,
+            //         })
+            //     );
             break;
         case "check_I_in_group":
             var groupId = message.payload;
-            const chats = await client.getChats();
-            var group = chats.find(
-                (chat) => chat.isGroup && chat.id._serialized === groupId
-            );
-            const result = group ? true : false;
+            const groupdata = await client.groupMetadata(groupId);
+            result = groupdata ? true : false;
             if (result) {
                 process.send({ SendMessageToGroup: groupId });
                 console.log(`Client is part of the group: ${groupId}`);
@@ -342,10 +341,11 @@ process.on("message", async (message) => {
             return result;
             break;
         case "send_message_to_group":
+            process.send({payload: message.payload});
             var {groupId,message} = message.payload;
-            console.log("groupId", groupId);
+            process.send({groupId});
             try {
-                const result = await client.sendMessage(groupId, message);
+                result = await client.sendMessage(message, {text: groupId});
                 console.log("Message sent to group:", result);
                 return result;
                 return true;

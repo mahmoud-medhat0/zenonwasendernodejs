@@ -1,8 +1,10 @@
-const waClient = require('../clients/waClient.js'); // Assuming you have a WhatsApp API client
+import WAClient from '../clients/waClient.js'; // Assuming you have a WhatsApp API client
 // Function to send a WhatsApp message by session ID
 const sendMessageBySessionId = async (sessionId, message, phoneNumber) => {
     try {
-        const response = await waClient.sendMessage(sessionId, phoneNumber, message);
+        console.log(sessionId, message, phoneNumber);
+        const waClient = new WAClient();
+        const response = await waClient.sendMessage(sessionId, message, phoneNumber);
         console.log(response);
         return response;
     } catch (error) {

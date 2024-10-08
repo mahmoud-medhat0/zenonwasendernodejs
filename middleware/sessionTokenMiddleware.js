@@ -1,4 +1,4 @@
-const connection = require('../db/connection');
+import connection from '../db/connection.js';
 
 const sessionTokenMiddleware = (req, res, next) => {
     const token = req.headers['authorization'];
@@ -16,4 +16,4 @@ const sessionTokenMiddleware = (req, res, next) => {
     });
 };
 
-module.exports = sessionTokenMiddleware;
+export default sessionTokenMiddleware;
