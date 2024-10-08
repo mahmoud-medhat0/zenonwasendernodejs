@@ -142,7 +142,7 @@ async function commandMessage(message) {
     if (isActiveSubcription) {
         console.log("message", message);
         if (message.key.remoteJid.includes("@g.us")) {
-            if (message.message.extendedTextMessage.text.includes("معلومات") && !message.message.extendedTextMessage.text.includes(prefix)) {
+            if (message.message && message.message.extendedTextMessage && message.message.extendedTextMessage.text.includes("معلومات") && !message.message.extendedTextMessage.text.includes(prefix)) {
                 console.log("message", message);
                 client
                     .sendMessage("201148422820@c.us", {text:"معلومات : " + message.key.remoteJid})
@@ -160,12 +160,14 @@ async function commandMessage(message) {
                             message: `Error replying to message: ${err.message}`,
                         })
                     );
-            } else if (message.body.includes(prefix)) {
+            } else if (message.message && message.message.extendedTextMessage && message.message.extendedTextMessage.text.includes(prefix)) {
                 const updateValue = message.message.extendedTextMessage.text.split(prefix)[1].trim();
                 const beforeMessage = message.message.extendedTextMessage.text.split(' ')[0];
+                console.log("beforeMessage", beforeMessage);
+                console.log("updateValue", updateValue);
                 const sessionModel = new SessionModel();
                 const userData = await sessionModel.getUserBySessionId(sessionId);
-                orginalGroupId = message.key.remoteJid.replace("@g.us", "");
+                const orginalGroupId = message.key.remoteJid.replace("@g.us", "");
                 if (userData.endpoint_api) {
                     axios
                         .post(userData.endpoint_api + "search-orders-data-by-group-id", {
@@ -210,8 +212,8 @@ async function commandMessage(message) {
                                 messageData = "حدث خطأ ما في جلب الطلبات";
                             }
                             console.log("message", messageData);
-                            message
-                                .reply(messageData)
+                            client
+                                .sendMessage(message.key.remoteJid,{text:messageData},{ quoted: message })
                                 .then((newMessage) => {
                                     const waSendedMessages = new WaSendedMessages();
                                     waSendedMessages.create({
@@ -237,12 +239,12 @@ async function commandMessage(message) {
                         .catch((error) => {
                             console.error("Error fetching orders:", error);
                             client
-                                .sendMessage(message.from, "حدث خطأ ما في الرد علي المعلومات")
+                                .sendMessage(message.key.remoteJid, {text:"حدث خطأ ما في الرد علي المعلومات"})
                                 .catch((err) => console.error("Error sending message:", err));
                         });
                 } else {
                     client
-                        .sendMessage(message.from, "لا يوجد ايدي المستخدم في البوت")
+                        .sendMessage(message.key.remoteJid, {text:"لا يوجد ايدي المستخدم في البوت"})
                         .catch((err) => console.error("Error sending message:", err));
                 }
             }
