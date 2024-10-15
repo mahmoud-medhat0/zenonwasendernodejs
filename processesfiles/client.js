@@ -67,6 +67,7 @@ async function initializeClient(sessionId) {
             console.log(`opened connection for ${sessionId}`);
             const sessionModel = new SessionModel();
             sessionModel.updateBySessionId(sessionId, "status", "readyforsendmessage");
+            sessionModel.updateBySessionId(sessionId, "phone_number", client.user?.id || "unknown");
             process.send({
                 sessionId,
                 type: "ready",
@@ -141,6 +142,9 @@ async function commandMessage(message) {
     const prefix = userData.prefix;
     if (isActiveSubcription) {
         console.log("message", message);
+        console.log("message.message.extendedTextMessage.text", message.message.extendedTextMessage.text);
+        console.log("prefix", prefix);
+        console.log("message.message.extendedTextMessage.text.includes(prefix)", message.message.extendedTextMessage.text.includes(prefix));
         if (message.key.remoteJid.includes("@g.us")) {
             if (message.message && message.message.extendedTextMessage && message.message.extendedTextMessage.text.includes("معلومات") && !message.message.extendedTextMessage.text.includes(prefix)) {
                 console.log("message", message);
