@@ -348,7 +348,21 @@ process.on("message", async (message) => {
             process.send({payloadInSendMessageGroup: message.payload});
             var {groupId,message} = message.payload;
             try {
-                result = await client.sendMessage(message, {text: groupId});
+                result = await client.sendMessage(message, {text: groupId}).then(async (result)=>{
+                    console.log("Message sent to group:", result);
+                    const waSendedMessages = new WaSendedMessages();
+                    await waSendedMessages.create({
+                        wa_session_id: sessionId,
+                        message: groupId,
+                        message_id: result.id.id,
+                        phone_number: message,
+                    });
+                    return result;
+                }).catch((err)=>{
+                    process.send({ sessionId, type: "error", message: `Error sending message to group: ${err.message}` });
+                    console.error("Error sending message to group:", err);
+                    return false;
+                });
                 console.log("Message sent to group:", result);
                 return result;
             } catch (err) {
