@@ -15,6 +15,7 @@
     "@hapi/boom": "^10.0.1",
     "@whiskeysockets/baileys": "^6.7.8",
     "axios": "^1.7.7",
+    "baileys": "github:WhiskeySockets/Baileys",
     "child_process": "^1.0.2",
     "crypto": "^1.0.1",
     "dotenv": "^16.4.5",
