@@ -1,25 +1,22 @@
 import MultiSessionManager from '../services/multiSessionManager.js';
 const sessionManager = new MultiSessionManager();
-import SessionModel from '../models/SessionModel.js';
 import { makeWASocket, useMultiFileAuthState, DisconnectReason } from '@whiskeysockets/baileys'
 import fs from 'fs';
 import path from 'path';
 import qrcode from "qrcode";
-
+import { getAllSessions,getBySessionId } from '../utils/requestsfunctions.js';
 // Load sessions from database on startup
-const sessionModel = new SessionModel();
-sessionModel.getAll((err, sessions) => {
-    if (err) {
-        console.error('Error loading sessions from database', err);
-        return;
-    }
+try {
+    const sessions = await getAllSessions();
     sessions.forEach(session => {
         const existingSession = sessionManager.getSession(session.session_id);
         if (existingSession) {
             existingSession.status = session.status;
         }
     });
-});
+} catch (err) {
+    console.error('Error loading sessions from database', err);
+}
 
 export const createSession = async (req, res) => {
     console.log("createSession", req.body);
@@ -89,7 +86,7 @@ export const getSession = (req, res) => {
     if (!sessionId || typeof sessionId !== 'string') {
         return res.status(400).send({ message: 'Invalid sessionId' });
     }
-    sessionModel.getBySessionId(sessionId, (err, session) => {
+    getBySessionId(sessionId, (err, session) => {
         if (err) {
             return res.status(500).send({ message: 'Error retrieving session', error: err.message });
         }

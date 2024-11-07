@@ -1,7 +1,6 @@
 import express from "express";
 const router = express.Router();
 import WAClient from "../clients/waClient.js"; // Assuming you have a service for WhatsApp
-import WaSendedMessages from "../models/WaSendedMessages.js";
 // Method to send WhatsApp message by session ID
 const sendMessageBySessionId = async (req, res) => {
   const { sessionId, message, phoneNumber, phoneNumber2 } = req.body;

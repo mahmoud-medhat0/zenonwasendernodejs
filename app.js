@@ -3,34 +3,24 @@ import bodyParser from 'body-parser';
 import axios from 'axios';
 import sessionRoutes from './routes/sessionRoutes.js';
 import WaMessagesRoutes from './routes/WaMessagesRoutes.js';
-import sessionController from './controllers/sessionController.js';
-import multiSessionManager from './services/multiSessionManager.js';
 import config from './config/config.js';
 import sessionTokenMiddleware from './middleware/sessionTokenMiddleware.js';
 import checkAuthorizedDomainsMiddleware from './middleware/authorizedDomainsMiddleware.js';
-import { fork } from 'child_process';
-import path from 'path';
-import SessionModel from './models/SessionModel.js';
 import ProcessManager from './processesfiles/processManager.js';
+import { getAllSessions } from './utils/requestsfunctions.js';
 
 console.log('Starting application...');
 // Start the WhatsApp client in a separate process
-const sessions = new SessionModel();
-sessions.getAll(async (err, sessionList) => {
-    if (err) {
-        console.error('Error fetching sessions:', err);
-        return;
-    }
+const sessions = await getAllSessions();
+sessions.forEach(async (session) => {
     // Ensure all client sessions are started using async/await
-    for (const session of sessionList) {
-        const sessionId = session.session_id;
-        console.log(`Initializing session: ${sessionId}`);
-        try {
-            const processManager = new ProcessManager();
-            await processManager.startClientSession(sessionId);
-        } catch (error) {
-            console.error(`Error starting session ${sessionId}:`, error);
-        }
+    const sessionId = session.session_id;
+    console.log(`Initializing session: ${sessionId}`);
+    try {
+        const processManager = new ProcessManager();
+        await processManager.startClientSession(sessionId);
+    } catch (error) {
+        console.error(`Error starting session ${sessionId}:`, error);
     }
 });
 
@@ -38,7 +28,7 @@ const app = express();
 app.use(bodyParser.json());
 
 app.use(checkAuthorizedDomainsMiddleware);
-app.use(sessionTokenMiddleware);
+// app.use(sessionTokenMiddleware);
 app.use(sessionRoutes);
 
 app.use(WaMessagesRoutes);

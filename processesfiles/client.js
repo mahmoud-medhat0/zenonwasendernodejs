@@ -1,6 +1,6 @@
 import qrcode from "qrcode";
-import SessionModel from '../models/SessionModel.js';
-import WaSendedMessages from '../models/WaSendedMessages.js';
+// import SessionModel from '../models/SessionModel.js';
+// import WaSendedMessages from '../models/WaSendedMessages.js';
 import axios from 'axios';
 import { makeWASocket, useMultiFileAuthState, DisconnectReason } from '@whiskeysockets/baileys'
 import { Boom } from '@hapi/boom';
@@ -8,7 +8,7 @@ import { unlinkSync } from 'fs';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-
+import { updateSession,checkSessionSubscription,getUserBySessionId,sendMessage } from '../utils/requestsfunctions.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -37,8 +37,7 @@ async function initializeClient(sessionId) {
         if(qr){
             try {
                 const qrCodeDataUrl = await qrcode.toDataURL(qr);
-                const sessionModel = new SessionModel();
-                sessionModel.updateBySessionId(sessionId, "qrcode", qrCodeDataUrl);
+                updateSession(sessionId, "qrcode", qrCodeDataUrl);
                 console.log(`New QR RECEIVED for session ${sessionId}`);
             } catch (error) {
                 console.log("Error updating QRCODE", error);
@@ -51,10 +50,10 @@ async function initializeClient(sessionId) {
             if (shouldReconnect) {
                 await initializeClient(sessionId);
             } else {
-                const sessionModel = new SessionModel();
-                sessionModel.updateBySessionId(sessionId, "status", "disconnected");
-                sessionModel.updateBySessionId(sessionId, "phone_number", "");
-                sessionModel.updateBySessionId(sessionId, "qrcode", "");
+                console.log("disconnected", sessionId);
+                updateSession(sessionId, "status", "disconnected");
+                updateSession(sessionId, "phone_number", "");
+                updateSession(sessionId, "qrcode", "");
                 process.send({
                     sessionId,
                     type: "disconnected",
@@ -65,9 +64,8 @@ async function initializeClient(sessionId) {
             }
         } else if (connection === 'open') {
             console.log(`opened connection for ${sessionId}`);
-            const sessionModel = new SessionModel();
-            sessionModel.updateBySessionId(sessionId, "status", "readyforsendmessage");
-            sessionModel.updateBySessionId(sessionId, "phone_number", client.user?.id || "unknown");
+            updateSession(sessionId, "status", "readyforsendmessage");
+            updateSession(sessionId, "phone_number", client.user?.id || "unknown");
             process.send({
                 sessionId,
                 type: "ready",
@@ -80,7 +78,7 @@ async function initializeClient(sessionId) {
 
         const msg = m.messages[0];
         if (!msg.key.fromMe && m.type === 'notify') {
-            await commandMessage(msg);
+            await commandMessage(msg,sessionId);
         }
     });
 
@@ -102,14 +100,13 @@ async function initializeClient(sessionId) {
 }
 
 async function retryDestroyAndInitializeClient(retries = 5, delay = 1000) {
-    const sessionModel = new SessionModel();
-    sessionModel.updateBySessionId(sessionId, "status", "disconnected");
-    sessionModel.updateBySessionId(sessionId, "phone_number", "");
-    sessionModel.updateBySessionId(sessionId, "qrcode", "");
+    updateSession(sessionId, "status", "disconnected");
+    updateSession(sessionId, "phone_number", "");
+    updateSession(sessionId, "qrcode", "");
     await client
         .destroy()
         .then(() => {
-            initializeClient();
+            initializeClient(sessionId);
         })
         .catch((err) => {
             if (retries > 0) {
@@ -133,14 +130,12 @@ async function removeAuthFiles(authDirectory, sessionId) {
         console.error(`Failed to delete session files for ${sessionId}:`, err);
     }
 }
-async function commandMessage(message) {
-    const sessionModel = new SessionModel();
-    const isActiveSubcription = await sessionModel.checkActiveSubcription(
-        sessionId
-    );
-    const userData = await sessionModel.getUserBySessionId(sessionId);
+async function commandMessage(message,sessionId) {
+    console.log("sessionId fghhfgh", sessionId);
+    const isActiveSubcription = await checkSessionSubscription(sessionId);
+    const userData = await getUserBySessionId(sessionId);
     const prefix = userData.prefix;
-    if (isActiveSubcription) {
+    if (isActiveSubcription && message.key.remoteJid.includes("@g.us")) {
         console.log("message", message);
         console.log("message.message.extendedTextMessage.text", message.message.extendedTextMessage.text);
         console.log("prefix", prefix);
@@ -169,8 +164,7 @@ async function commandMessage(message) {
                 const beforeMessage = message.message.extendedTextMessage.text.split(' ')[0];
                 console.log("beforeMessage", beforeMessage);
                 console.log("updateValue", updateValue);
-                const sessionModel = new SessionModel();
-                const userData = await sessionModel.getUserBySessionId(sessionId);
+                const userData = await getUserBySessionId(sessionId);
                 const orginalGroupId = message.key.remoteJid.replace("@g.us", "");
                 if (userData.endpoint_api) {
                     axios
@@ -219,13 +213,8 @@ async function commandMessage(message) {
                             client
                                 .sendMessage(message.key.remoteJid,{text:messageData},{ quoted: message })
                                 .then((newMessage) => {
-                                    const waSendedMessages = new WaSendedMessages();
-                                    waSendedMessages.create({
-                                        wa_session_id: sessionId,
-                                        message: messageData,
-                                        message_id: newMessage.id.id,
-                                        phone_number: message.key.remoteJid,
-                                    });
+                                    console.log("newMessage", newMessage);
+                                    sendMessage(sessionId, newMessage.key.id, message.key.remoteJid, newMessage.message.extendedTextMessage.text);
                                     process.send({
                                         sessionId,
                                         type: "message_sent",
@@ -269,13 +258,7 @@ process.on("message", async (message) => {
                 .sendMessage(to, {text:body})
                 .then(async (result) => {
                     console.log("result of send message", result.id.id);
-                    const waSendedMessages = new WaSendedMessages();
-                    await waSendedMessages.create({
-                        wa_session_id: sessionId,
-                        message: body,
-                        message_id: result.id.id,
-                        phone_number: to,
-                    });
+                    sendMessage(sessionId, result.id.id, to, body);
                     process.send({
                         sessionId,
                         type: "message_sent",
@@ -350,13 +333,7 @@ process.on("message", async (message) => {
             try {
                 result = await client.sendMessage(message, {text: groupId}).then(async (result)=>{
                     console.log("Message sent to group:", result);
-                    const waSendedMessages = new WaSendedMessages();
-                    await waSendedMessages.create({
-                        wa_session_id: sessionId,
-                        message: groupId,
-                        message_id: result.id.id,
-                        phone_number: message,
-                    });
+                    sendMessage(sessionId, result.id.id, groupId, message);
                     return result;
                 }).catch((err)=>{
                     process.send({ sessionId, type: "error", message: `Error sending message to group: ${err.message}` });

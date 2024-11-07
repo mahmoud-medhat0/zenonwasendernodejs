@@ -3,22 +3,26 @@ import fs from 'fs';
 import path from 'path';
 import config from '../config/config.js';
 import qrcode from 'qrcode';
-import SessionModel from '../models/SessionModel.js';
 import ProcessManager from '../processesfiles/processManager.js';
+import { getAllSessions,getBySessionId } from '../utils/requestsfunctions.js';
 class MultiSessionManager {
     constructor() {
-        const sessionModel = new SessionModel();
-        sessionModel.getAll((err, sessions) => {
-            if (err) {
-                console.error('Error loading sessions from database', err);
-                this.sessions = {};
-                return;
+        this.sessions = {};
+        this.initializeSessions();
+    }
+
+    async initializeSessions() {
+        try {
+            const sessions = await getAllSessions();
+            if (sessions) {
+            sessions.forEach((session) => {
+                    this.sessions[session.session_id] = session;
+                });
             }
-            this.sessions = sessions.reduce((acc, session) => {
-                acc[session.session_id] = session;
-                return acc;
-            }, {});
-        });
+        } catch (err) {
+            console.error('Error loading sessions from database', err);
+            this.sessions = {};
+        }
     }
     createSession(sessionId) {
         console.log("Arrived to method createSession", sessionId);
@@ -78,17 +82,8 @@ class MultiSessionManager {
     }
 
     async getSession(sessionId) {
-        const sessionModel = new SessionModel();
         try {
-            const results = await new Promise((resolve, reject) => {
-                sessionModel.getBySessionId(sessionId, (err, results) => {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        resolve(results);
-                    }
-                });
-            });
+            const results = await getBySessionId(sessionId);
             return results[0];
         } catch (err) {
             console.error(`Error getting session ${sessionId}`, err);

@@ -1,10 +1,8 @@
-import SessionModel from '../models/SessionModel.js';
-import SessionNotValidNumbers from '../models/sessionNotValidNumbers.js';
-import WaSendedMessages from '../models/WaSendedMessages.js';
 const clientInstances = {};
 const sessionTimeouts = {};
 import ProcessManager from '../processesfiles/processManager.js'; // Import the ProcessManager
 const processManager = new ProcessManager();
+import { updateSession,getBySessionId } from '../utils/requestsfunctions.js';
 class WAClient {
     // async initialize(sessionId) {
 
@@ -58,8 +56,7 @@ class WAClient {
     //     }
     // }
     async sendMessage(sessionId, message, phoneNumber, phoneNumber2) {
-        let sessionModel = new SessionModel();
-        let status = await (await sessionModel.getBySessionId(sessionId)).status;
+        let status = await (await getBySessionId(sessionId)).status;
         if (status === 'readyforsendmessage') {
             console.log(phoneNumber, phoneNumber2);
             try {

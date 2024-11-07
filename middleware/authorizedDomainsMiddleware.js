@@ -1,4 +1,4 @@
-const authorizedDomains = ['http://wa-sender.local/', 'http://localhost:3000'];
+const authorizedDomains = ['http://wa-sender.local/', 'http://localhost:3000','https://wasender.zenonsoftware.com/'];
 
 function checkAuthorizedDomains(req, res, next) {
 
